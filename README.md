@@ -93,7 +93,7 @@ Lässt sich ein Satz nicht sicher in Gegenstand und Ort zerlegen (z. B. „Zweit
 
 ### Veröffentlichung
 
-Die App läuft über GitHub Pages aus dem Branch `main`, Ordner `/ (root)`, unter https://carpedings-cpu.github.io/wo-ist/. Jeder Push auf `main` wird nach ein bis zwei Minuten live.
+Die App läuft über GitHub Pages aus dem Branch `main`, Ordner `/ (root)`, unter https://carpedings-cpu.github.io/Wo-ist/. Jeder Push auf `main` wird nach ein bis zwei Minuten live.
 
 Neue Version ausliefern: In `service-worker.js` die Konstante `CACHE` hochzählen (`wo-ists-v7` …). Geänderte Dateien kommen sonst erst beim übernächsten Start an.
 
