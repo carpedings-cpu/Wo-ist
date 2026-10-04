@@ -204,6 +204,7 @@ test('Ablegen, Suchen, Verlauf, Foto, Liste, Sicherung', async () => {
     return { typ: f.typ, breite: img.width, hoehe: img.height, arrayBuffer: f.daten instanceof ArrayBuffer };
   });
   assert.deepEqual(foto, { typ: 'image/jpeg', breite: 1200, hoehe: 800, arrayBuffer: true });
+
   assert.equal((await zuletztGesagt(seite)).text, 'Foto gespeichert.');
 
   await seite.click('#b-stimmt');
@@ -305,6 +306,33 @@ test('Ablegen, Suchen, Verlauf, Foto, Liste, Sicherung', async () => {
   await seite.goBack();
   await seite.locator('#s-start').waitFor();
 
+  await kontext.close();
+});
+
+test('Fotos: längste Seite 1200 px, höchstens 150 KB', async () => {
+  const { kontext, seite } = await neueSeite(android, ATTRAPPE);
+  await sprich(seite, '#b-ablegen', 'Die Brille liegt auf dem Nachttisch');
+  await seite.locator('#s-ok').waitFor();
+
+  const hochkant = await seite.evaluate(async () => {
+    const c = document.createElement('canvas');
+    c.width = 1512; c.height = 2016;
+    const g = c.getContext('2d');
+    const d = g.createImageData(c.width, c.height);
+    for (let i = 0; i < d.data.length; i++) d.data[i] = (i % 4 === 3) ? 255 : Math.random() * 255;
+    g.putImageData(d, 0, 0);
+    return c.toDataURL('image/jpeg', 0.95).split(',')[1];
+  });
+  await seite.setInputFiles('#foto-input', { name: 'hoch.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(hochkant, 'base64') });
+  await seite.locator('#ok-foto:not([hidden])').waitFor();
+  const reines = await seite.evaluate(async () => {
+    const d = await new Promise(ok => { const r = indexedDB.open('wo-ists'); r.onsuccess = () => ok(r.result); });
+    const alle = await new Promise(ok => { const r = d.transaction('eintraege').objectStore('eintraege').getAll(); r.onsuccess = () => ok(r.result); });
+    const img = await createImageBitmap(new Blob([alle[0].foto.daten], { type: alle[0].foto.typ }));
+    return { kb: alle[0].foto.daten.byteLength / 1024, breite: img.width, hoehe: img.height };
+  });
+  assert.ok(Math.max(reines.breite, reines.hoehe) <= 1200, `Kantenlänge ${reines.breite}×${reines.hoehe}`);
+  assert.ok(reines.kb <= 150, `reines Rauschen, hochkant: ${reines.kb.toFixed(0)} KB`);
   await kontext.close();
 });
 
@@ -498,7 +526,7 @@ test('Offline: App und Fuse.js kommen aus dem Service Worker', async () => {
   const { kontext, seite } = await neueSeite(android, ATTRAPPE);
   await seite.evaluate(() => navigator.serviceWorker.ready);
   await seite.waitForFunction(async () => {
-    const c = await caches.open('wo-ists-v5');
+    const c = await caches.open('wo-ists-v6');
     return (await c.keys()).length >= 10;
   });
   await kontext.setOffline(true);

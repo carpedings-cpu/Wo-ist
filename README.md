@@ -30,7 +30,7 @@ Wichtig fürs iPhone: Vom Home-Bildschirm aus erlaubt Apple keine Spracherkennun
 
 ## So wird sie benutzt
 
-**Ich lege etwas ab** (grün): Antippen und frei sprechen, zum Beispiel „Den Ersatzschlüssel fürs Auto hab ich in die blaue Dose im Flurschrank getan“. Die Aufnahme endet von selbst, sobald man aufhört zu sprechen. Die App zeigt und sagt „Gespeichert: Ersatzschlüssel fürs Auto, in der blauen Dose im Flurschrank“. Mit **Stimmt** ist alles erledigt, mit **Nochmal** wird der Eintrag verworfen und neu aufgenommen, mit **Foto vom Ort** kommt ein Bild dazu.
+**Ich lege etwas ab** (grün): Antippen und frei sprechen, zum Beispiel „Den Ersatzschlüssel fürs Auto hab ich in die blaue Dose im Flurschrank getan“. Die Aufnahme endet von selbst, sobald man aufhört zu sprechen. Die App zeigt und sagt „Gespeichert: Ersatzschlüssel fürs Auto, in der blauen Dose im Flurschrank“. Mit **Stimmt** ist alles erledigt, mit **Nochmal** wird der Eintrag verworfen und neu aufgenommen, mit **Foto vom Ort** kommt ein Bild dazu. Fotos werden vor dem Speichern auf höchstens 1200 px an der längsten Seite verkleinert und als JPEG auf höchstens 150 KB komprimiert, meist landen sie bei 60 bis 150 KB.
 
 Gibt es den Gegenstand schon, fragt die App nach („Meinen Sie den Ersatzschlüssel fürs Auto von vorher?“). Bei **Ja** wird der alte Ort im Verlauf gemerkt.
 
@@ -95,7 +95,7 @@ Lässt sich ein Satz nicht sicher in Gegenstand und Ort zerlegen (z. B. „Zweit
 
 Die App läuft über GitHub Pages aus dem Branch `main`, Ordner `/ (root)`, unter https://carpedings-cpu.github.io/wo-ist/. Jeder Push auf `main` wird nach ein bis zwei Minuten live.
 
-Neue Version ausliefern: In `service-worker.js` die Konstante `CACHE` hochzählen (`wo-ists-v6` …). Geänderte Dateien kommen sonst erst beim übernächsten Start an.
+Neue Version ausliefern: In `service-worker.js` die Konstante `CACHE` hochzählen (`wo-ists-v7` …). Geänderte Dateien kommen sonst erst beim übernächsten Start an.
 
 ### Tests
 
@@ -107,7 +107,7 @@ npm run test:browser  # Bedienung in Chromium, Android- und iPhone-Emulation
 
 `npm test` prüft das Zerlegen an 29 deutschen Beispielsätzen und 8 reinen Ortsangaben (darunter „hab den Pass in die Schublade getan“, „Brille liegt auf dem Nachttisch“, „Äh, also die Brille ist auf dem Klavier.“), die Suche mit und ohne Fuse.js samt Synonymen, die Rückfragen und alle Farbpaare auf mindestens 7:1.
 
-`npm run test:browser` spielt die Bedienung in Chromium durch: Erkennung der Sprach-Schnittstelle (Android-Chrome, Safari im Browser, Safari vom Home-Bildschirm mit Fallback, Browser ohne Schnittstelle, verweigertes Mikrofon), Ablegen, Rückfrage bei gleichem Gegenstand, Verlauf, Foto auf 1200 px und JPEG, mehrere Treffer, kein Treffer, Löschen mit Rückfrage, Sicherung und Laden, Nochmal vorlesen, Liegt jetzt woanders, Erinnerung an die Sicherung, zwei Geräte über eine nachgebaute Supabase (Anmelden, Foto, Umlegen, Löschen), Schriftgrößen, 360 px Breite und Offline-Start. Die Spracherkennung selbst wird dabei durch eine Attrappe ersetzt.
+`npm run test:browser` spielt die Bedienung in Chromium durch: Erkennung der Sprach-Schnittstelle (Android-Chrome, Safari im Browser, Safari vom Home-Bildschirm mit Fallback, Browser ohne Schnittstelle, verweigertes Mikrofon), Ablegen, Rückfrage bei gleichem Gegenstand, Verlauf, Foto auf höchstens 1200 px Kantenlänge und 150 KB, mehrere Treffer, kein Treffer, Löschen mit Rückfrage, Sicherung und Laden, Nochmal vorlesen, Liegt jetzt woanders, Erinnerung an die Sicherung, zwei Geräte über eine nachgebaute Supabase (Anmelden, Foto, Umlegen, Löschen), Schriftgrößen, 360 px Breite und Offline-Start. Die Spracherkennung selbst wird dabei durch eine Attrappe ersetzt.
 
 ### Noch auf echten Geräten zu prüfen
 

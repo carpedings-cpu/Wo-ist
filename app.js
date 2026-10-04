@@ -640,14 +640,28 @@ function start() {
     });
   }
 
-  async function verkleinere(datei) {
-    const img = await ladeBild(datei);
-    const f = Math.min(1, 1200 / img.naturalWidth);
+  const FOTO_MAX_BYTES = 150 * 1024;
+
+  function zeichne(img, laengste) {
+    const f = Math.min(1, laengste / Math.max(img.naturalWidth, img.naturalHeight));
     const c = document.createElement('canvas');
     c.width = Math.round(img.naturalWidth * f);
     c.height = Math.round(img.naturalHeight * f);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.7));
+    return c;
+  }
+
+  const alsJpeg = (c, q) => new Promise(ok => c.toBlob(ok, 'image/jpeg', q));
+
+  async function verkleinere(datei) {
+    const img = await ladeBild(datei);
+    const c = zeichne(img, 1200);
+    let blob;
+    for (const q of [0.7, 0.6, 0.5, 0.4]) {
+      blob = await alsJpeg(c, q);
+      if (blob.size <= FOTO_MAX_BYTES) return blob;
+    }
+    return alsJpeg(zeichne(img, 900), 0.5);
   }
 
   async function fotoGewaehlt(datei) {
