@@ -1,26 +1,13 @@
 /* Wo ist's? · Autorin: Diana Ziegler · Supabase-Attrappe für die Browser-Tests */
 window.supabase = {
   createClient(url) {
-    const lies = () => JSON.parse(localStorage.getItem('fake-sb') || 'null');
-    const uid = () => (lies() || { user: {} }).user.id;
+    const uid = () => 'haushalt';
     const post = (pfad, body) => fetch(url + pfad, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).then(r => r.json());
     const fehler = r => (r.error ? { message: r.error } : null);
     const zuB64 = blob => new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result.split(',')[1]); f.readAsDataURL(blob); });
-    const anmelden = pfad => async d => {
-      const r = await post(pfad, d);
-      if (r.error) return { data: {}, error: fehler(r) };
-      localStorage.setItem('fake-sb', JSON.stringify(r.session));
-      return { data: { session: r.session, user: r.session.user }, error: null };
-    };
     return {
-      auth: {
-        getSession: async () => ({ data: { session: lies() } }),
-        signInWithPassword: anmelden('/auth/login'),
-        signUp: anmelden('/auth/signup'),
-        signOut: async () => { localStorage.removeItem('fake-sb'); return { error: null }; }
-      },
       from() {
         const q = {
           ab: '',

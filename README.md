@@ -4,7 +4,7 @@ Autorin: Diana Ziegler
 
 Man sagt dem Handy, wo man etwas hingelegt hat, und fragt später einfach „Wo ist der Autoschlüssel?“. Die App liest die Antwort groß vor. Gedacht für Menschen, die mit Technik wenig zu tun haben wollen: zwei Knöpfe, große Schrift, keine Anmeldung.
 
-Alle Einträge bleiben auf dem Gerät (IndexedDB). Es gibt keinen Server, kein Konto und keine Statistik. Die App funktioniert nach dem ersten Öffnen auch ohne Internet.
+Alle Einträge liegen auf dem Gerät (IndexedDB) und werden zusätzlich über Supabase zwischen den Geräten im Haushalt abgeglichen. Es gibt kein Konto und keine Statistik. Die App funktioniert nach dem ersten Öffnen auch ohne Internet.
 
 ## Auf dem Startbildschirm ablegen
 
@@ -42,25 +42,17 @@ Die Suche kennt gängige andere Wörter für dasselbe Ding: Wer nach dem Portemo
 
 ## Gemeinsam im Haushalt nutzen
 
-Zwei Geräte (z. B. zwei Handys oder Handy und iPad) können dieselben Einträge sehen. Beide melden sich unter „Alle Einträge“ → „Gemeinsam nutzen“ mit derselben E-Mail und demselben Passwort an und bleiben danach angemeldet. Die App gleicht beim Öffnen, nach jeder Änderung und bei wiederkehrendem Internet ab. Ohne Internet arbeitet jedes Gerät mit seiner eigenen Kopie weiter. Ändern beide denselben Gegenstand, gilt die zuletzt gemachte Änderung.
+Jedes Gerät, das die App öffnet, sieht dieselben Einträge und Fotos. Es gibt keine Anmeldung und kein Passwort. Die App gleicht beim Öffnen, kurz nach jeder Änderung und bei wiederkehrendem Internet ab. Ohne Internet arbeitet jedes Gerät mit seiner eigenen Kopie weiter. Ändern beide denselben Gegenstand, gilt die zuletzt gemachte Änderung.
 
-Ohne Anmeldung bleibt alles wie bisher nur auf dem Gerät. Der Bereich „Gemeinsam nutzen“ erscheint erst, wenn die App mit einem Supabase-Projekt verbunden ist.
+Das ist bewusst ohne Schutz gebaut: Wer die Adresse der App kennt, kann die Einträge lesen, ändern und löschen. Für einen Zwei-Personen-Haushalt mit Alltagsgegenständen ist das so gewollt. Wichtige Verstecke (Wertsachen, Schlüssel für Fremde) gehören deshalb nicht hinein.
 
-### Einrichtung
+Die Daten liegen im Supabase-Projekt `wo-ist` (Frankfurt, eu-central-1) in der Tabelle `haushalt_eintraege` und im Speicher `haushalt-fotos`. `supabase/schema.sql` legt beides an. URL und Publishable Key stehen oben in `app.js` bei `ABGLEICH`; ist die URL leer, bleibt alles nur auf dem Gerät.
 
-Das Supabase-Projekt `wo-ist` (Region Frankfurt, eu-central-1) ist angelegt, `supabase/schema.sql` eingespielt, URL und Publishable Key stehen oben in `app.js` bei `ABGLEICH`. Jedes Konto sieht nur seine eigenen Einträge und Fotos (geprüft mit zwei Testkonten).
-
-Offen ist nur eine Einstellung im Supabase-Dashboard: Authentication → Sign In / Providers → Email → „Confirm email“. Ist sie an, muss die E-Mail beim ersten Anlegen des Kontos per Link bestätigt werden. Für einen privaten Haushalt kann sie aus bleiben, dann klappt die Anmeldung sofort.
-
-Der Abgleich holt jedes Mal die komplette Liste des Haushalts und vergleicht über das Änderungsdatum. Für ein paar hundert Einträge sind das wenige Kilobyte; fehlende Fotos werden dabei automatisch nachgeladen.
-
-Für ein anderes Projekt: `supabase/schema.sql` im SQL-Editor ausführen, URL und Publishable Key in `app.js` eintragen, `CACHE` in `service-worker.js` hochzählen.
-
-Der Publishable Key darf öffentlich im Code stehen, geschützt sind die Daten über die Zugriffsregeln (Row Level Security). Ein kostenloses Supabase-Projekt wird nach einer Woche ohne Zugriff pausiert. Die App bleibt dann lokal nutzbar, gleicht aber erst wieder ab, wenn das Projekt im Supabase-Dashboard fortgesetzt wurde.
+Der Abgleich holt jedes Mal die komplette Liste und vergleicht über das Änderungsdatum. Für ein paar hundert Einträge sind das wenige Kilobyte; fehlende Fotos werden dabei automatisch nachgeladen. Ein kostenloses Supabase-Projekt wird nach einer Woche ohne Zugriff pausiert. Die App bleibt dann lokal nutzbar und gleicht wieder ab, sobald das Projekt im Supabase-Dashboard fortgesetzt wurde.
 
 ## Datenschutz
 
-Ohne Anmeldung speichert und sendet die App selbst nichts nach außen. Mit „Gemeinsam nutzen“ liegen Einträge und Fotos zusätzlich im eigenen Supabase-Projekt. Die Spracherkennung übernimmt aber der Browser: Chrome schickt die Aufnahme dafür an Google, Safari an Apple (Siri). Wer das nicht möchte, tippt auf „Lieber tippen“ und nutzt die Tastatur. Fuse.js (Suche) wird einmalig von cdn.jsdelivr.net geladen und dann aus dem Gerätespeicher genutzt.
+Ist kein Supabase-Projekt eingetragen, speichert und sendet die App selbst nichts nach außen. Mit „Gemeinsam nutzen“ liegen Einträge und Fotos zusätzlich und ohne Zugangsschutz im eigenen Supabase-Projekt. Die Spracherkennung übernimmt aber der Browser: Chrome schickt die Aufnahme dafür an Google, Safari an Apple (Siri). Wer das nicht möchte, tippt auf „Lieber tippen“ und nutzt die Tastatur. Fuse.js (Suche) wird einmalig von cdn.jsdelivr.net geladen und dann aus dem Gerätespeicher genutzt.
 
 ## Technik
 
@@ -74,7 +66,7 @@ Vanilla HTML, CSS und JavaScript ohne Build-Schritt. Alle Pfade sind relativ, di
 | `service-worker.js` | Offline-Cache inkl. Fuse.js |
 | `manifest.json` | PWA-Angaben |
 | `icons/` | App-Symbole |
-| `supabase/schema.sql` | Datenbank und Zugriffsregeln für „Gemeinsam nutzen“ |
+| `supabase/schema.sql` | Tabelle und Foto-Speicher für „Gemeinsam nutzen“ |
 | `tests/` | Tests |
 
 Datenmodell eines Eintrags:
@@ -95,7 +87,7 @@ Lässt sich ein Satz nicht sicher in Gegenstand und Ort zerlegen (z. B. „Zweit
 
 Die App läuft über GitHub Pages aus dem Branch `main`, Ordner `/ (root)`, unter https://carpedings-cpu.github.io/Wo-ist/. Jeder Push auf `main` wird nach ein bis zwei Minuten live.
 
-Neue Version ausliefern: In `service-worker.js` die Konstante `CACHE` hochzählen (`wo-ists-v7` …). Geänderte Dateien kommen sonst erst beim übernächsten Start an.
+Neue Version ausliefern: In `service-worker.js` die Konstante `CACHE` hochzählen (`wo-ists-v8` …). Geänderte Dateien kommen sonst erst beim übernächsten Start an.
 
 ### Tests
 
@@ -107,7 +99,7 @@ npm run test:browser  # Bedienung in Chromium, Android- und iPhone-Emulation
 
 `npm test` prüft das Zerlegen an 29 deutschen Beispielsätzen und 8 reinen Ortsangaben (darunter „hab den Pass in die Schublade getan“, „Brille liegt auf dem Nachttisch“, „Äh, also die Brille ist auf dem Klavier.“), die Suche mit und ohne Fuse.js samt Synonymen, die Rückfragen und alle Farbpaare auf mindestens 7:1.
 
-`npm run test:browser` spielt die Bedienung in Chromium durch: Erkennung der Sprach-Schnittstelle (Android-Chrome, Safari im Browser, Safari vom Home-Bildschirm mit Fallback, Browser ohne Schnittstelle, verweigertes Mikrofon), Ablegen, Rückfrage bei gleichem Gegenstand, Verlauf, Foto auf höchstens 1200 px Kantenlänge und 150 KB, mehrere Treffer, kein Treffer, Löschen mit Rückfrage, Sicherung und Laden, Nochmal vorlesen, Liegt jetzt woanders, Erinnerung an die Sicherung, zwei Geräte über eine nachgebaute Supabase (Anmelden, Foto, Umlegen, Löschen), Schriftgrößen, 360 px Breite und Offline-Start. Die Spracherkennung selbst wird dabei durch eine Attrappe ersetzt.
+`npm run test:browser` spielt die Bedienung in Chromium durch: Erkennung der Sprach-Schnittstelle (Android-Chrome, Safari im Browser, Safari vom Home-Bildschirm mit Fallback, Browser ohne Schnittstelle, verweigertes Mikrofon), Ablegen, Rückfrage bei gleichem Gegenstand, Verlauf, Foto auf höchstens 1200 px Kantenlänge und 150 KB, mehrere Treffer, kein Treffer, Löschen mit Rückfrage, Sicherung und Laden, Nochmal vorlesen, Liegt jetzt woanders, Erinnerung an die Sicherung, zwei Geräte über eine nachgebaute Supabase (Foto, Umlegen, Löschen), Schriftgrößen, 360 px Breite und Offline-Start. Die Spracherkennung selbst wird dabei durch eine Attrappe ersetzt.
 
 ### Noch auf echten Geräten zu prüfen
 

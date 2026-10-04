@@ -371,7 +371,7 @@ function start() {
   let hoerenGeht = !!SR && !(IOS && STANDALONE);
   let modus = 'ablegen', erkennung = null, letzter = null, offen = null, audio = null, stimme = null, entsperrt = false;
   let zuLoeschen = null, fotoUrl = null, trefferUrl = null, umlegen = null;
-  let sb = null, sitzung = null, abgleichTimer = null, gleichtAb = false, nochmalAbgleichen = false;
+  let sb = null, verbunden = false, abgleichTimer = null, gleichtAb = false, nochmalAbgleichen = false;
 
   const el = (tag, klasse, text) => {
     const n = document.createElement(tag);
@@ -579,7 +579,7 @@ function start() {
   async function loescheEintrag(id) {
     const e = await hole(id);
     if (!e) return;
-    if (!sitzung) return entferne(id);
+    if (!konfig.url) return entferne(id);
     await aendere({ ...e, geloescht: true, foto: null, fotoPfad: null, fotoAlt: [...(e.fotoAlt || []), e.fotoPfad].filter(Boolean) });
   }
 
@@ -883,39 +883,27 @@ function start() {
     });
   }
 
-  function teilenMeldung(text, sprechen = true) {
-    const m = $('#teilen-meldung');
-    m.textContent = text;
-    m.hidden = !text;
-    if (text && sprechen) sage(text);
-  }
-
-  function zeigeTeilen() {
-    $('#teilen-aus').hidden = !!sitzung;
-    $('#teilen-an').hidden = !sitzung;
-    if (sitzung) $('#teilen-wer').textContent = `Verbunden als ${sitzung.user.email}.`;
-    $('#sicherung-text').textContent = sitzung
-      ? 'Die Einträge liegen auf diesem Gerät und im gemeinsamen Konto. Eine zusätzliche Sicherung schadet trotzdem nicht.'
-      : 'Die Einträge liegen nur auf diesem Gerät. Speichern Sie ab und zu eine Sicherung, zum Beispiel in Ihren Dateien oder per E-Mail an sich selbst.';
-  }
-
   async function verbinde() {
-    if (!konfig.url) return;
+    if (!konfig.url || verbunden) return;
     $('#teilen').hidden = false;
+    $('#sicherung-text').textContent = 'Die Einträge liegen auf diesem Gerät und gemeinsam im Internet. Eine zusätzliche Sicherung schadet trotzdem nicht.';
     try {
       if (!window.supabase) await ladeSkript(SUPABASE_JS, SUPABASE_SRI);
-      sb = window.supabase.createClient(konfig.url, konfig.schluessel);
-      sitzung = (await sb.auth.getSession()).data.session;
+      sb = window.supabase.createClient(konfig.url, konfig.schluessel, { auth: { persistSession: false, autoRefreshToken: false } });
+      verbunden = true;
     } catch (_) {
-      teilenMeldung('Ohne Internet kann ich mich gerade nicht verbinden.', false);
+      $('#teilen-stand').textContent = 'Ohne Internet gleiche ich gerade nicht ab. Sobald Internet da ist, geht es weiter.';
       return;
     }
-    zeigeTeilen();
-    if (sitzung) gleicheAb();
+    if (!merke.lies('erstabgleich')) {
+      for (const e of await alleRoh()) if (!e.offen) await lege({ ...e, offen: true, geaendert: e.geaendert || e.erstellt });
+      merke.setze('erstabgleich', new Date().toISOString());
+    }
+    gleicheAb();
   }
 
   function planeAbgleich() {
-    if (!sitzung) return;
+    if (!verbunden) return;
     clearTimeout(abgleichTimer);
     abgleichTimer = setTimeout(gleicheAb, 1500);
   }
@@ -927,7 +915,7 @@ function start() {
     }
     let foto = lokal && lokal.fotoPfad === z.foto_pfad ? lokal.foto : null;
     if (z.foto_pfad && !foto) {
-      const { data, error } = await sb.storage.from('fotos').download(z.foto_pfad);
+      const { data, error } = await sb.storage.from('haushalt-fotos').download(z.foto_pfad);
       if (!error && data) foto = await fotoAblegen(data);
     }
     await lege({
@@ -945,14 +933,14 @@ function start() {
   }
 
   async function schiebe(e) {
-    const fotos = sb.storage.from('fotos');
+    const fotos = sb.storage.from('haushalt-fotos');
     let pfad = e.fotoPfad || null;
     if (e.foto && !pfad && !e.geloescht) {
-      pfad = `${sitzung.user.id}/${e.id}/${Date.now()}.jpg`;
+      pfad = `${e.id}/${Date.now()}.jpg`;
       const { error } = await fotos.upload(pfad, fotoBlob(e.foto), { contentType: 'image/jpeg', upsert: true });
       if (error) throw error;
     }
-    const { error } = await sb.from('eintraege').upsert({
+    const { error } = await sb.from('haushalt_eintraege').upsert({
       id: e.id,
       gegenstand: e.gegenstand,
       ort: e.ort,
@@ -972,13 +960,13 @@ function start() {
   }
 
   async function gleicheAb() {
-    if (!sb || !sitzung) return;
+    if (!verbunden) return;
     if (gleichtAb) { nochmalAbgleichen = true; return; }
     gleichtAb = true;
     document.documentElement.dataset.abgleich = 'laeuft';
     $('#teilen-stand').textContent = 'Gleiche gerade ab …';
     try {
-      const { data: zeilen, error } = await sb.from('eintraege').select('*').order('geaendert');
+      const { data: zeilen, error } = await sb.from('haushalt_eintraege').select('*').order('geaendert');
       if (error) throw error;
       let geaendert = false;
       for (const z of zeilen || []) {
@@ -1002,45 +990,6 @@ function start() {
       gleichtAb = false;
       if (nochmalAbgleichen) { nochmalAbgleichen = false; gleicheAb(); }
     }
-  }
-
-  const ANMELDE_FEHLER = {
-    'Invalid login credentials': 'E-Mail oder Passwort stimmt nicht.',
-    'Email not confirmed': 'Die E-Mail ist noch nicht bestätigt. Bitte den Link in der E-Mail antippen.',
-    'User already registered': 'Für diese E-Mail gibt es schon ein Konto. Bitte anmelden.'
-  };
-
-  async function anmelden(neu) {
-    if (!sb) return teilenMeldung('Ohne Internet kann ich mich gerade nicht verbinden.');
-    const email = $('#teilen-mail').value.trim();
-    const password = $('#teilen-pw').value;
-    if (!email || !password) return teilenMeldung('Bitte E-Mail und Passwort eingeben.');
-    if (neu && password.length < 8) return teilenMeldung('Das Passwort braucht mindestens 8 Zeichen.');
-    teilenMeldung('Einen Moment …', false);
-    try {
-      const { data, error } = neu
-        ? await sb.auth.signUp({ email, password })
-        : await sb.auth.signInWithPassword({ email, password });
-      if (error) return teilenMeldung(ANMELDE_FEHLER[error.message] || 'Das hat nicht geklappt. Bitte später noch einmal versuchen.');
-      if (!data.session) return teilenMeldung('Ich habe Ihnen eine E-Mail geschickt. Bitte den Link darin antippen und sich danach hier anmelden.');
-      sitzung = data.session;
-    } catch (_) {
-      return teilenMeldung('Ohne Internet kann ich mich gerade nicht anmelden.');
-    }
-    $('#teilen-pw').value = '';
-    for (const e of await alleRoh()) if (!e.offen) await lege({ ...e, offen: true, geaendert: e.geaendert || e.erstellt });
-    zeigeTeilen();
-    ton(990, 200);
-    teilenMeldung('Angemeldet. Ich gleiche jetzt mit dem anderen Gerät ab.');
-    gleicheAb();
-  }
-
-  async function abmelden() {
-    if (sb) await sb.auth.signOut().catch(() => {});
-    sitzung = null;
-    zeigeTeilen();
-    ton(440);
-    teilenMeldung('Abgemeldet. Die Einträge bleiben auf diesem Gerät.');
   }
 
   /* Knöpfe */
@@ -1071,11 +1020,8 @@ function start() {
   klick('#b-loeschen-ja', loeschen);
   klick('#b-export', sichern);
   klick('#b-import', () => $('#import-input').click());
-  klick('#b-anmelden', () => anmelden(false));
-  klick('#b-registrieren', () => anmelden(true));
   klick('#b-abgleichen', () => { ton(660, 80); sage('Ich gleiche ab.'); gleicheAb(); });
-  klick('#b-abmelden', abmelden);
-  window.addEventListener('online', () => gleicheAb());
+  window.addEventListener('online', () => (verbunden ? gleicheAb() : verbinde()));
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') gleicheAb(); });
   $('#import-input').addEventListener('change', ev => { laden(ev.target.files[0]); ev.target.value = ''; });
 

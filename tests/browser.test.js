@@ -25,7 +25,7 @@ function fakeSupabase(req, res) {
     const b = JSON.parse(roh || '{}');
     const pfad = req.url.slice('/__fake'.length);
     const antwort = obj => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
-    const eigen = p => typeof p === 'string' && p.startsWith(b.uid + '/');
+    const eigen = p => typeof p === 'string';
     if (pfad === '/auth/signup') {
       if (fake.nutzer.has(b.email)) return antwort({ error: 'User already registered' });
       fake.nutzer.set(b.email, { id: require('node:crypto').randomUUID(), password: b.password });
@@ -410,6 +410,7 @@ test('Zwei Geräte im Haushalt teilen sich die Einträge', async () => {
     assert.equal(await seite.evaluate(() => document.documentElement.dataset.abgleich), 'fertig');
   };
   const zurListe = async seite => { await seite.click('#b-liste'); await seite.locator('#s-liste').waitFor(); };
+  const zumStart = async seite => { await seite.click('#s-liste [data-aktion="start"] >> nth=1'); await seite.waitForTimeout(200); };
 
   const a = await geraet();
   await sprich(a.seite, '#b-ablegen', 'Die Brille liegt auf dem Nachttisch');
@@ -426,33 +427,18 @@ test('Zwei Geräte im Haushalt teilen sich die Einträge', async () => {
 
   await zurListe(a.seite);
   assert.equal(await a.seite.isVisible('#teilen'), true);
-  await a.seite.fill('#teilen-mail', 'familie@example.org');
-  await a.seite.fill('#teilen-pw', 'kurz');
-  await a.seite.click('#b-registrieren');
-  assert.match(await a.seite.textContent('#teilen-meldung'), /mindestens 8 Zeichen/);
-  await a.seite.fill('#teilen-pw', 'geheim-und-lang');
-  await a.seite.click('#b-registrieren');
-  await a.seite.locator('#teilen-an').waitFor();
-  assert.equal(await a.seite.textContent('#teilen-wer'), 'Verbunden als familie@example.org.');
+  assert.equal(await a.seite.locator('#teilen input').count(), 0, 'keine Anmeldefelder');
   await abgleich(a.seite);
   assert.equal(fake.zeilen.size, 1);
   assert.equal(fake.dateien.size, 1);
 
   const b = await geraet();
   await zurListe(b.seite);
-  await b.seite.fill('#teilen-mail', 'familie@example.org');
-  await b.seite.fill('#teilen-pw', 'falsch-falsch');
-  await b.seite.click('#b-anmelden');
-  await b.seite.waitForFunction(() => /stimmt nicht/.test(document.querySelector('#teilen-meldung').textContent));
-  await b.seite.fill('#teilen-pw', 'geheim-und-lang');
-  await b.seite.click('#b-anmelden');
-  await b.seite.locator('#teilen-an').waitFor();
   await abgleich(b.seite);
   await b.seite.waitForFunction(() => document.querySelectorAll('#liste li').length === 1);
   assert.match(await b.seite.textContent('#liste li'), /Brille.*mit Foto/s);
 
-  await b.seite.click('#s-liste [data-aktion="start"] >> nth=1');
-  await b.seite.waitForTimeout(200);
+  await zumStart(b.seite);
   await sprich(b.seite, '#b-suchen', 'Wo ist meine Brille?');
   await b.seite.locator('#s-treffer').waitFor();
   assert.equal(await b.seite.evaluate(() => document.querySelector('#treffer img.foto').naturalWidth), 1200);
@@ -465,8 +451,7 @@ test('Zwei Geräte im Haushalt teilen sich die Einträge', async () => {
   assert.equal(fake.dateien.size, 0, 'altes Foto im Speicher gelöscht');
 
   await abgleich(a.seite);
-  await a.seite.click('#s-liste [data-aktion="start"] >> nth=1');
-  await a.seite.waitForTimeout(200);
+  await zumStart(a.seite);
   await sprich(a.seite, '#b-suchen', 'Wo ist die Brille?');
   await a.seite.locator('#s-treffer').waitFor();
   assert.equal(await a.seite.textContent('#treffer .ort'), 'Im Bad');
@@ -484,8 +469,6 @@ test('Zwei Geräte im Haushalt teilen sich die Einträge', async () => {
   await abgleich(b.seite);
   await b.seite.waitForFunction(() => document.querySelectorAll('#liste li').length === 0);
 
-  await b.seite.click('#b-abmelden');
-  await b.seite.locator('#teilen-aus').waitFor();
   await a.kontext.close();
   await b.kontext.close();
 });
@@ -526,7 +509,7 @@ test('Offline: App und Fuse.js kommen aus dem Service Worker', async () => {
   const { kontext, seite } = await neueSeite(android, ATTRAPPE);
   await seite.evaluate(() => navigator.serviceWorker.ready);
   await seite.waitForFunction(async () => {
-    const c = await caches.open('wo-ists-v6');
+    const c = await caches.open('wo-ists-v7');
     return (await c.keys()).length >= 10;
   });
   await kontext.setOffline(true);
