@@ -481,6 +481,58 @@ test('Ohne Konfiguration bleibt Gemeinsam nutzen verborgen', async () => {
   await kontext.close();
 });
 
+test('iOS-App: Spracheingabe über das eigene Plugin', async () => {
+  const { kontext, seite } = await neueSeite(android, () => {
+    window.__gesagt = [];
+    window.speechSynthesis.speak = u => { if (u.text.trim()) window.__gesagt.push({ text: u.text }); };
+    delete window.SpeechRecognition;
+    delete window.webkitSpeechRecognition;
+    window.__saetze = [];
+    window.__nativFehler = null;
+    window.__abgebrochen = 0;
+    const hoerer = [];
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      registerPlugin: name => name === 'Sprache' ? {
+        addListener: async (_, fn) => { hoerer.push(fn); return { remove: () => hoerer.splice(hoerer.indexOf(fn), 1) }; },
+        hoeren: () => new Promise((ok, nein) => setTimeout(() => {
+          if (window.__nativFehler) return nein(Object.assign(new Error('x'), { code: window.__nativFehler }));
+          const text = window.__saetze.shift() || '';
+          hoerer.forEach(fn => fn({ text: text.slice(0, 5) }));
+          ok({ text });
+        }, 50)),
+        abbrechen: async () => { window.__abgebrochen++; }
+      } : null
+    };
+  });
+  assert.equal(await seite.getAttribute('html', 'data-hoeren'), 'ja');
+  assert.equal(await seite.evaluate(() => navigator.serviceWorker.getRegistrations().then(r => r.length)), 0, 'kein Service Worker in der App');
+
+  await sprich(seite, '#b-ablegen', 'Die Brille liegt auf dem Nachttisch');
+  await seite.waitForFunction(() => /Nachttisch/.test(document.querySelector('#ok-text').textContent));
+  assert.equal(await seite.textContent('#ok-text'), 'Gespeichert: Brille, auf dem Nachttisch');
+  await seite.click('#b-stimmt');
+  await seite.waitForTimeout(200);
+
+  await sprich(seite, '#b-suchen', 'Wo ist meine Brille?');
+  await seite.locator('#s-treffer').waitFor();
+  assert.equal(await seite.textContent('#treffer .ort'), 'Auf dem Nachttisch');
+  await seite.click('#s-treffer [data-aktion="start"]');
+  await seite.waitForTimeout(200);
+
+  await seite.click('#b-suchen');
+  await seite.locator('#s-hoeren').waitFor();
+  await seite.click('#s-hoeren [data-aktion="start"]');
+  assert.equal(await seite.evaluate(() => window.__abgebrochen), 1);
+  await seite.waitForTimeout(200);
+
+  await seite.evaluate(() => { window.__nativFehler = 'not-allowed'; });
+  await seite.click('#b-ablegen');
+  await seite.locator('#s-tippen').waitFor();
+  assert.match(await seite.textContent('#tippen-grund'), /Mikrofon ist für diese App nicht freigegeben/);
+  await kontext.close();
+});
+
 test('Gestaltung: Schriftgröße, Breite 360 px, keine Icons ohne Text', async () => {
   const { kontext, seite } = await neueSeite(android, ATTRAPPE);
   await sprich(seite, '#b-ablegen', 'Brille liegt auf dem Nachttisch');

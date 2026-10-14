@@ -368,7 +368,10 @@ function start() {
     'language-not-supported': 'Die Spracherkennung kann hier kein Deutsch.'
   };
 
-  let hoerenGeht = !!SR && !(IOS && STANDALONE);
+  const NATIV = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const SPRACHE = NATIV && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('Sprache') : null;
+  let hoerenGeht = SPRACHE ? true : !!SR && !(IOS && STANDALONE);
+  let nativNr = 0, nativAktiv = false;
   let modus = 'ablegen', erkennung = null, letzter = null, offen = null, audio = null, stimme = null, entsperrt = false;
   let zuLoeschen = null, fotoUrl = null, trefferUrl = null, umlegen = null;
   let sb = null, verbunden = false, abgleichTimer = null, gleichtAb = false, nochmalAbgleichen = false;
@@ -493,7 +496,36 @@ function start() {
     if (hoerenGeht) hoere(); else tippen();
   }
 
+  async function hoereNativ() {
+    stoppeHoeren();
+    const nr = ++nativNr;
+    nativAktiv = true;
+    $('#hoeren-text').textContent = '';
+    zeige('hoeren');
+    ton(880);
+    const zuhoerer = await SPRACHE.addListener('teilergebnis', d => {
+      if (nr === nativNr) $('#hoeren-text').textContent = d.text || '';
+    });
+    let text = '', fehler = null;
+    try {
+      text = ((await SPRACHE.hoeren()) || {}).text || '';
+    } catch (err) {
+      fehler = (err && err.code) || 'audio-capture';
+    }
+    zuhoerer.remove();
+    if (nr !== nativNr) return;
+    nativAktiv = false;
+    ton(440);
+    if (fehler) {
+      if (fehler !== 'network') hoerenGeht = false;
+      return tippen(GRUND[fehler] || GRUND['audio-capture']);
+    }
+    if (text) verarbeite(text);
+    else { zeige('nichts'); sage('Ich habe nichts gehört. Bitte noch einmal.'); }
+  }
+
   function hoere() {
+    if (SPRACHE) return hoereNativ();
     stoppeHoeren();
     const r = new SR();
     erkennung = r;
@@ -526,6 +558,11 @@ function start() {
   }
 
   function stoppeHoeren() {
+    if (nativAktiv) {
+      nativNr++;
+      nativAktiv = false;
+      SPRACHE.abbrechen().catch(() => {});
+    }
     if (!erkennung) return;
     const r = erkennung;
     erkennung = null;
@@ -1044,7 +1081,7 @@ function start() {
     speechSynthesis.addEventListener('voiceschanged', waehleStimme);
   }
 
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && !NATIV) {
     window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js').catch(() => {}));
   }
 }

@@ -1,0 +1,42 @@
+# Wo ist's? · Autorin: Diana Ziegler
+# Baut die iOS-App auf einem Mac von GitHub. Vorerst ohne Signatur, nur zur Prüfung.
+name: iOS-App bauen
+
+on:
+  push:
+    branches: [appstore]
+  workflow_dispatch:
+
+jobs:
+  bauen:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: nativ
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Abhängigkeiten
+        run: npm ci
+
+      - name: Web-App zusammenstellen und ins iOS-Projekt kopieren
+        run: npm run ios
+
+      - name: Xcode-Version
+        run: xcodebuild -version
+
+      - name: Für den Simulator bauen (ohne Signatur)
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tail -n 80
+          exit ${PIPESTATUS[0]}
